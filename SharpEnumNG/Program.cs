@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Management;
 using System.DirectoryServices;
+using System.DirectoryServices.ActiveDirectory;
 using System.Collections;
 using System.DirectoryServices.AccountManagement;
 using System.Net.NetworkInformation;
@@ -36,6 +37,12 @@ namespace enumTest
             Console.WriteLine("------------------------------");
             Console.ResetColor();
             sysinfo();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("------------------------------");
+            Console.WriteLine("[*] Domain Information");
+            Console.WriteLine("------------------------------");
+            Console.ResetColor();
+            domain();
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("------------------------------");
             Console.WriteLine("[*] Network Information");
@@ -86,22 +93,6 @@ namespace enumTest
             Console.WriteLine("------------------------------");
             Console.WriteLine(Environment.SystemDirectory);
             Console.WriteLine("------------------------------");
-            //domain name-------------------------------------
-            Console.WriteLine("------------------------------");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Domain Name");
-            Console.ResetColor();
-            Console.WriteLine("------------------------------");
-            Console.WriteLine(Environment.UserDomainName);
-            Console.WriteLine("------------------------------");
-            //username-----------------------------------------
-            Console.WriteLine("------------------------------");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Username");
-            Console.ResetColor();
-            Console.WriteLine("------------------------------");
-            Console.WriteLine(Environment.UserName);
-            Console.WriteLine("------------------------------");
             //mounted drive info-------------------------------
             Console.WriteLine("------------------------------");
             Console.ForegroundColor = ConsoleColor.Green;
@@ -126,6 +117,27 @@ namespace enumTest
                 {
 
                 }
+            //username-----------------------------------------
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Username");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            Console.WriteLine(Environment.UserName);
+            Console.WriteLine("------------------------------");
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Local Groups");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            DirectoryEntry machine = new DirectoryEntry("WinNT://" + Environment.MachineName + ",Computer");
+            foreach (DirectoryEntry child in machine.Children)
+            {
+                if (child.SchemaClassName == "Group")
+                {
+                    Console.WriteLine(child.Name.ToString());
+                }
+            }
             //local admin group members---------------------
             Console.WriteLine("------------------------------");
             Console.ForegroundColor = ConsoleColor.Green;
@@ -143,33 +155,6 @@ namespace enumTest
                         Console.Out.WriteLine(x.Name);
                     }
                 }
-            }
-            //domain user groups-----------------------------------
-            Console.WriteLine("------------------------------");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Domain User Groups for "+ Environment.UserName);
-            Console.ResetColor();
-            Console.WriteLine("------------------------------");
-
-            try
-            {
-                using (PrincipalContext grps = new PrincipalContext(ContextType.Domain))
-                {
-                    UserPrincipal user = UserPrincipal.FindByIdentity(grps, Environment.UserName);
-                    Console.WriteLine(user);
-                    if (user != null)
-                    {
-                        var groups = user.GetAuthorizationGroups();
-                        foreach (GroupPrincipal group in groups)
-                        {
-                            Console.WriteLine(group);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                Console.WriteLine("[!] Error Contacting Domain Controller");
             }
             //AV, Anti-Spyware, Firewall detection (https://stackoverflow.com/questions/1331887/detect-antivirus-on-windows-using-c-sharp)
             ManagementObjectSearcher wmiData1 = new ManagementObjectSearcher(@"root\SecurityCenter2", "SELECT * FROM AntiVirusProduct");
@@ -212,6 +197,91 @@ namespace enumTest
                 Console.WriteLine(virusCheckerName);
             }
 
+        }
+        public static void domain()
+        {
+            //domain name-------------------------------------
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Domain Name");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            Console.WriteLine(Environment.UserDomainName);
+            //domain controller location
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Domain Controllers");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            try
+            {
+                Domain domain = Domain.GetCurrentDomain();
+                using (domain)
+                {
+                    foreach (DomainController dc in domain.FindAllDiscoverableDomainControllers())
+                    {
+
+                        using (dc)
+                        {
+                            if (dc == null || dc.ToString() == "")
+                            {
+                                Console.WriteLine("No Domain Controllers Found");
+                            }
+                            else
+                            {
+                                Console.WriteLine(dc.Name);
+                                Console.WriteLine(dc.OSVersion);
+                                Console.WriteLine(dc.SiteName);
+                                Console.WriteLine(dc.IPAddress);
+                                Console.WriteLine(dc.Forest);
+                                Console.WriteLine("");
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                Console.WriteLine("[!] Error Contacting Domain Controller");
+            }
+            //domain user groups-----------------------------------
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Domain User Groups for " + Environment.UserName);
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            try
+            {
+                using (PrincipalContext grps = new PrincipalContext(ContextType.Domain))
+                {
+                    UserPrincipal user = UserPrincipal.FindByIdentity(grps, Environment.UserName);
+                    Console.WriteLine(user);
+                    if (user != null)
+                    {
+                        var groups = user.GetAuthorizationGroups();
+                        foreach (GroupPrincipal group in groups)
+                        {
+                            Console.WriteLine(group);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                Console.WriteLine("[!] Error Contacting Domain Controller");
+            }
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Available File Shares");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            using (ManagementClass shares = new ManagementClass(@"\\.\root\cimv2", "Win32_Share", new ObjectGetOptions()))
+            {
+                foreach (ManagementObject share in shares.GetInstances())
+                {
+                    Console.WriteLine(share["Name"]);
+                }
+            }
         }
         public static void network()
         {
@@ -335,7 +405,7 @@ namespace enumTest
 
             foreach (ManagementObject quickfix in collection)
             {
-               var hotfix = quickfix["HotFixID"].ToString();
+                var hotfix = quickfix["HotFixID"].ToString();
                 Console.WriteLine(hotfix);
             }
             Console.WriteLine("");
@@ -383,7 +453,7 @@ namespace enumTest
         public static void cleartext()
         {
             //Cleartext passwords in files-------------------------------------------
-            string[] files = { @"C:\unattend.xml", @"C:\Windows\Panther\Unattend.xml", @"C:\Windows\Panther\Unattend\Unattend.xml", @"C:\Windows\system32\sysprep.inf", @"C:\Windows\system32\sysprep\sysprep.xml"  };
+            string[] files = { @"C:\unattend.xml", @"C:\Windows\Panther\Unattend.xml", @"C:\Windows\Panther\Unattend\Unattend.xml", @"C:\Windows\system32\sysprep.inf", @"C:\Windows\system32\sysprep\sysprep.xml" };
             Console.WriteLine("------------------------------");
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Cleartext Passwords in Common Files");
