@@ -6,8 +6,8 @@ using System.Net;
 using System.Management;
 using System.DirectoryServices;
 using System.DirectoryServices.ActiveDirectory;
-using System.Collections;
 using System.DirectoryServices.AccountManagement;
+using System.Collections;
 using System.Net.NetworkInformation;
 using Microsoft.Win32;
 
@@ -196,6 +196,38 @@ namespace enumTest
                 var virusCheckerName = virusChecker["displayName"];
                 Console.WriteLine(virusCheckerName);
             }
+            //domain users who have used local machine-----------------------------------
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Accounts Which Have Signed Into Local Machine");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            DirectoryEntry directoryEntry = new DirectoryEntry("WinNT://" + Environment.MachineName);
+            string userNames = "";
+            foreach (DirectoryEntry child in directoryEntry.Children)
+            {
+                if (child.SchemaClassName == "User")
+                {
+                    userNames += child.Name + Environment.NewLine;
+                }
+            }
+            Console.WriteLine(userNames);
+            //Installed Updates https://stackoverflow.com/questions/815340/how-do-i-get-a-list-of-installed-updates-and-hotfixes
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Installed Updates");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            const string querys = "SELECT HotFixID FROM Win32_QuickFixEngineering";
+            var search = new ManagementObjectSearcher(querys);
+            var collection = search.Get();
+
+            foreach (ManagementObject quickfix in collection)
+            {
+                var hotfix = quickfix["HotFixID"].ToString();
+                Console.WriteLine(hotfix);
+            }
+            Console.WriteLine("");
 
         }
         public static void domain()
@@ -244,32 +276,7 @@ namespace enumTest
             {
                 Console.WriteLine("[!] Error Contacting Domain Controller");
             }
-            //domain user groups-----------------------------------
-            Console.WriteLine("------------------------------");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Domain User Groups for " + Environment.UserName);
-            Console.ResetColor();
-            Console.WriteLine("------------------------------");
-            try
-            {
-                using (PrincipalContext grps = new PrincipalContext(ContextType.Domain))
-                {
-                    UserPrincipal user = UserPrincipal.FindByIdentity(grps, Environment.UserName);
-                    Console.WriteLine(user);
-                    if (user != null)
-                    {
-                        var groups = user.GetAuthorizationGroups();
-                        foreach (GroupPrincipal group in groups)
-                        {
-                            Console.WriteLine(group);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                Console.WriteLine("[!] Error Contacting Domain Controller");
-            }
+            //available file shares
             Console.WriteLine("------------------------------");
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Available File Shares");
@@ -282,6 +289,25 @@ namespace enumTest
                     Console.WriteLine(share["Name"]);
                 }
             }
+            Console.WriteLine("------------------------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Domain User Accounts");
+            Console.ResetColor();
+            Console.WriteLine("------------------------------");
+            using (var context = new PrincipalContext(ContextType.Domain, Environment.UserDomainName))
+            {
+                using (var searcher = new PrincipalSearcher(new UserPrincipal(context)))
+                {
+                    foreach (var result in searcher.FindAll())
+                    {
+                        DirectoryEntry de = result.GetUnderlyingObject() as DirectoryEntry;
+                        Console.WriteLine("SAM Account Name: " + de.Properties["samAccountName"].Value);
+                        Console.WriteLine("User Principal Name: " + de.Properties["userPrincipalName"].Value);
+                        Console.WriteLine("\n");
+                    }
+                }
+            }
+
         }
         public static void network()
         {
@@ -393,22 +419,6 @@ namespace enumTest
                 }
                 Console.WriteLine("");
             }
-            //Installed Updates https://stackoverflow.com/questions/815340/how-do-i-get-a-list-of-installed-updates-and-hotfixes
-            Console.WriteLine("------------------------------");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Installed Updates");
-            Console.ResetColor();
-            Console.WriteLine("------------------------------");
-            const string querys = "SELECT HotFixID FROM Win32_QuickFixEngineering";
-            var search = new ManagementObjectSearcher(querys);
-            var collection = search.Get();
-
-            foreach (ManagementObject quickfix in collection)
-            {
-                var hotfix = quickfix["HotFixID"].ToString();
-                Console.WriteLine(hotfix);
-            }
-            Console.WriteLine("");
             //Program Files directory listing
             Console.WriteLine("------------------------------");
             Console.ForegroundColor = ConsoleColor.Green;
@@ -474,16 +484,6 @@ namespace enumTest
             }
         }
     }
-
-    //WSL Enumeration
-    //write file output option
-
-    //To Do
-    //Finish initial version
-    //Shorten functions using string arrays and foreach loops
-    //Modularize
-    //Attempt to replicate using windows API calls directly
-
-    //Think about WSL enumeration script
+//To Do: Output to file in C:\temp
 }
 
